@@ -20,6 +20,7 @@ const temp = require("../shared/main/temp");
 const utils = require("../shared/main/utils");
 const forkUtils = require("../shared/main/fork-utils");
 const fileFormats = require("../shared/main/file-formats");
+const comicInfoToc = require("../shared/main/comicinfo-toc");
 const contextMenu = require("./main/menu-context");
 const pagesLoader = require("./main/pages-loader");
 const timers = require("../shared/main/timers");
@@ -542,6 +543,9 @@ function initOnIpcCallbacks() {
       case "toolbar-button-open":
         onMenuOpenFile();
         break;
+      case "toolbar-button-toc":
+        sendIpcToRenderer("show-modal-toc", g_fileData.toc || []);
+        break;
       case "toolbar-button-rotate-clockwise":
         onMenuRotateClockwise();
         break;
@@ -698,6 +702,8 @@ let g_fileData = {
   getPageCallback: undefined,
   data: undefined,
   metadata: undefined,
+  toc: [],
+  pageLayout: [],
 };
 
 exports.getFileData = function () {
@@ -717,6 +723,8 @@ function cleanUpFileData() {
   g_fileData.pageIndex = 0;
   g_fileData.pageRotation = 0;
   g_fileData.password = "";
+  g_fileData.toc = [];
+  g_fileData.pageLayout = [];
 }
 
 exports.updateFileDataMetadataEntry = function (name, value) {
@@ -734,6 +742,35 @@ exports.requestOpenConfirmation = function (filePath) {
     filePath,
   );
 };
+
+async function updateComicInfoToc() {
+  g_fileData.toc = [];
+  if (g_fileData.metadata?.comicInfoId) {
+    g_fileData.toc = await comicInfoToc.loadTocFromComicInfo(g_fileData);
+  }
+  sendIpcToRenderer("update-toc", g_fileData.toc);
+}
+
+async function updatePageLayoutFromComicInfo() {
+  g_fileData.pageLayout = [];
+  if (g_fileData.metadata?.comicInfoId) {
+    g_fileData.pageLayout = await comicInfoToc.loadPageLayoutFromComicInfo(
+      g_fileData,
+    );
+  }
+}
+
+async function updatePagesDirectionFromComicInfo() {
+  if (!g_fileData.metadata?.comicInfoId) return;
+
+  const mangaDirection = await comicInfoToc.loadMangaDirectionFromComicInfo(
+    g_fileData,
+  );
+
+  if (mangaDirection === "yesandrighttoleft") {
+    setPagesDirection(1);
+  }
+}
 
 async function tryOpen(filePath, bookType, historyEntry, homeScreenListEntry) {
   sendIpcToPreload("update-menubar"); // in case coming from menu
@@ -1201,6 +1238,9 @@ async function openComicBookFromPath(
           g_fileData.pageIndex = pageIndex;
           g_fileData.password = password;
           g_fileData.metadata = rarData.metadata;
+          await updateComicInfoToc();
+          await updatePageLayoutFromComicInfo();
+          await updatePagesDirectionFromComicInfo();
           updateMenuAndToolbarItems();
           setPageRotation(0, false);
           setInitialZoom(filePath);
@@ -1289,6 +1329,9 @@ async function openComicBookFromPath(
           g_fileData.pageIndex = pageIndex;
           g_fileData.password = password;
           g_fileData.metadata = zipData.metadata;
+          await updateComicInfoToc();
+          await updatePageLayoutFromComicInfo();
+          await updatePagesDirectionFromComicInfo();
           updateMenuAndToolbarItems();
           setPageRotation(0, false);
           setInitialZoom(filePath);
@@ -1357,6 +1400,9 @@ async function openComicBookFromPath(
           g_fileData.pageIndex = pageIndex;
           g_fileData.password = password;
           g_fileData.metadata = sevenData.metadata;
+          await updateComicInfoToc();
+          await updatePageLayoutFromComicInfo();
+          await updatePagesDirectionFromComicInfo();
           updateMenuAndToolbarItems();
           setPageRotation(0, false);
           setInitialZoom(filePath);
@@ -1598,6 +1644,7 @@ function closeCurrentFile(addToHistory = true) {
   updateMenuAndToolbarItems();
   renderTitle();
   sendIpcToRenderer("file-closed");
+  sendIpcToRenderer("update-toc", []);
   sendIpcToRenderer("update-toolbar-menus-collapse-all");
   sendIpcToRenderer("set-scrollbar-position", 0);
   sendIpcToPreload("update-menubar");
@@ -1607,6 +1654,77 @@ function closeCurrentFile(addToHistory = true) {
 //////////////////////////////////////////////////////////////////////////////
 // PAGE NAVIGATION ///////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
+
+function getComicInfoPageType(pageIndex) {
+  return g_fileData.pageLayout?.[pageIndex];
+}
+
+function hasComicInfoPageLayout() {
+  return Array.isArray(g_fileData.pageLayout) &&
+    g_fileData.pageLayout.some((pageType) => pageType !== undefined);
+}
+
+function getComicInfoDualPageIndexes(pageIndex) {
+  if (!hasComicInfoPageLayout()) return undefined;
+
+  const pageType = getComicInfoPageType(pageIndex);
+  if (pageType === "frontcover") {
+    return [pageIndex];
+  }
+
+  if (pageType === "rightpage") {
+    const nextPageType = getComicInfoPageType(pageIndex + 1);
+    const indexes = [pageIndex];
+    if (nextPageType === "leftpage") {
+      indexes.push(pageIndex + 1);
+    } else if (nextPageType === undefined && pageIndex + 1 < g_fileData.numPages) {
+      indexes.push(pageIndex + 1);
+    }
+    return indexes;
+  }
+
+  if (pageType === "leftpage") {
+    const previousPageType = getComicInfoPageType(pageIndex - 1);
+    if (previousPageType === "rightpage") {
+      return [pageIndex - 1, pageIndex];
+    }
+    return [pageIndex];
+  }
+
+  return undefined;
+}
+
+function getFallbackDualPageIndexes(pageIndex) {
+  let normalizedPageIndex = pageIndex;
+
+  if (settings.getValue("page_mode") === 1) {
+    if (normalizedPageIndex % 2 > 0) {
+      normalizedPageIndex--;
+    }
+  } else if (settings.getValue("page_mode") === 2) {
+    if (normalizedPageIndex !== 0 && normalizedPageIndex % 2 === 0) {
+      normalizedPageIndex--;
+    }
+  }
+
+  const indexes = [normalizedPageIndex];
+  if (normalizedPageIndex + 1 < g_fileData.numPages) {
+    indexes.push(normalizedPageIndex + 1);
+  }
+  return indexes;
+}
+
+function getCurrentDualPageIndexesForNavigation() {
+  const comicInfoIndexes = getComicInfoDualPageIndexes(g_fileData.pageIndex);
+  if (comicInfoIndexes) {
+    return comicInfoIndexes;
+  }
+  return getFallbackDualPageIndexes(g_fileData.pageIndex);
+}
+
+function shouldUseComicInfoDualPageNavigation() {
+  return settings.getValue("page_mode") !== 0 && hasComicInfoPageLayout();
+}
 
 async function goToPage(pageIndex, scrollBarPos = 0) {
   // scrollbar: 0 top - 1 bottom
@@ -1631,15 +1749,24 @@ async function goToPage(pageIndex, scrollBarPos = 0) {
         indexes.push(g_fileData.pageIndex);
       } else if (settings.getValue("page_mode") === 1) {
         // double page mode
-        if (g_fileData.pageIndex % 2 > 0) {
-          g_fileData.pageIndex--;
+        const comicInfoIndexes = getComicInfoDualPageIndexes(g_fileData.pageIndex);
+        if (comicInfoIndexes) {
+          indexes = comicInfoIndexes;
+          g_fileData.pageIndex = indexes[0];
+        } else {
+          if (g_fileData.pageIndex % 2 > 0) {
+            g_fileData.pageIndex--;
+          }
+          indexes.push(g_fileData.pageIndex);
+          if (g_fileData.pageIndex + 1 < g_fileData.numPages)
+            indexes.push(g_fileData.pageIndex + 1);
         }
-        indexes.push(g_fileData.pageIndex);
-        if (g_fileData.pageIndex + 1 < g_fileData.numPages)
-          indexes.push(g_fileData.pageIndex + 1);
       } else {
         // double page mode center first
-        if (g_fileData.pageIndex === 0) {
+        const comicInfoIndexes = getComicInfoDualPageIndexes(g_fileData.pageIndex);
+        if (comicInfoIndexes) {
+          indexes = comicInfoIndexes;
+        } else if (g_fileData.pageIndex === 0) {
           indexes.push(g_fileData.pageIndex);
         } else {
           if (g_fileData.pageIndex % 2 === 0) {
@@ -1804,6 +1931,20 @@ function goToNextPage() {
   // if (g_fileData.type === FileDataType.EPUB_EBOOK) {
   //   goToPage(1);
   // } else {
+  if (shouldUseComicInfoDualPageNavigation()) {
+    const currentIndexes = getCurrentDualPageIndexesForNavigation();
+    const nextPageIndex = Math.max(...currentIndexes) + 1;
+    if (nextPageIndex < g_fileData.numPages) {
+      goToPage(nextPageIndex);
+    } else if (
+      settings.getValue("autoOpen") === 1 ||
+      settings.getValue("autoOpen") === 2
+    ) {
+      tryOpeningAdjacentFile(true);
+    }
+    return;
+  }
+
   if (g_fileData.pageIndex + 1 < g_fileData.numPages) {
     if (settings.getValue("page_mode") === 0) {
       // single page mode
@@ -1842,6 +1983,17 @@ function goToPreviousPage() {
   // if (g_fileData.type === FileDataType.EPUB_EBOOK) {
   //   goToPage(-1);
   // } else {
+  if (shouldUseComicInfoDualPageNavigation()) {
+    const currentIndexes = getCurrentDualPageIndexesForNavigation();
+    const previousPageIndex = Math.min(...currentIndexes) - 1;
+    if (previousPageIndex >= 0) {
+      goToPage(previousPageIndex, 1);
+    } else if (settings.getValue("autoOpen") === 2) {
+      tryOpeningAdjacentFile(false);
+    }
+    return;
+  }
+
   if (g_fileData.pageIndex - 1 >= 0) {
     if (settings.getValue("page_mode") === 0) {
       // single page mode
@@ -2045,6 +2197,10 @@ function updateMenuAndToolbarItems(isOpen = true) {
       }
 
       sendIpcToRenderer(
+        "update-toolbar-toc-button",
+        (g_fileData.toc || []).length > 0,
+      );
+      sendIpcToRenderer(
         "set-toolbar-visibility",
         settings.getValue("showToolBar"),
       );
@@ -2053,10 +2209,12 @@ function updateMenuAndToolbarItems(isOpen = true) {
       menuBar.setCanOpenBooks(true);
       menuBar.setCanOpenTools(true);
       menuBar.setCanTweakUI(true);
+      sendIpcToRenderer("update-toolbar-toc-button", false);
       sendIpcToRenderer("set-toolbar-visibility", false);
     }
   } else {
     menuBar.setComicBookOpened(false);
+    sendIpcToRenderer("update-toolbar-toc-button", false);
     sendIpcToRenderer("set-toolbar-visibility", false);
   }
 }
@@ -2092,6 +2250,7 @@ function updateLocalizedText() {
       _("menu-view-layout-pagesdirection-ltr"),
       _("menu-view-layout-pagesdirection-rtl"),
     ],
+    "Table of Contents",
   );
   homeScreen.updateLocalizedText();
 }
