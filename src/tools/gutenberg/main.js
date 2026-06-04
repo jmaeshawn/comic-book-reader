@@ -23,6 +23,7 @@ const tools = require("../../shared/main/tools");
 ///////////////////////////////////////////////////////////////////////////////
 
 let g_isInitialized = false;
+let g_netCancelController;
 
 function init() {
   if (!g_isInitialized) {
@@ -119,6 +120,10 @@ function initOnIpcCallbacks() {
     onCloseClicked();
   });
 
+  on("cancel-search", () => {
+    g_netCancelController.abort();
+  });
+
   on("search", async (text, pageNum) => {
     try {
       if (text.trim().length === 0) {
@@ -130,9 +135,12 @@ function initOnIpcCallbacks() {
       // e.g. https://www.gutenberg.org/ebooks/search/?query=jules+verne
       let searchQuery = encodeURIComponent(text);
       const net = require("../../shared/both/net");
+      g_netCancelController = new AbortController();
+      // NOTE: changed the timeout from 10000 to 2 mins! as Gutendex has been
+      // veeeery slow to respond lately.
       const response = await net.get(
         `https://gutendex.com/books?page=${pageNum}&search=${searchQuery}`,
-        { timeout: 10000 },
+        { timeout: 120000, cancelSignal: g_netCancelController.signal },
       );
       sendIpcToRenderer(
         "update-results",
@@ -144,12 +152,17 @@ function initOnIpcCallbacks() {
         _("tool-shared-ui-search-item-open-browser"),
       );
     } catch (error) {
-      log.error(error);
+      if (error?.name === "AbortError") {
+      } else {
+        log.error(error);
+      }
       sendIpcToRenderer(
         "update-results",
         undefined,
         _("tool-shared-ui-search-nothing-found"),
       );
+    } finally {
+      g_netCancelController = null;
     }
   });
 

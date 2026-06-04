@@ -40,6 +40,7 @@ const ToolMode = {
   CONVERT: 0,
   CREATE: 1,
   EXTRACT: 2,
+  CONVERT_IMGS: 3,
 };
 let g_mode = ToolMode.CONVERT;
 
@@ -243,15 +244,15 @@ function initOnIpcCallbacks() {
           FileExtension.MOBI,
           FileExtension.FB2,
         ];
-      } else {
+      } else if (g_mode === ToolMode.CREATE) {
         allowedFileTypesName = _("dialog-file-types-comics-images");
         allowedFileTypesList = [
           FileExtension.JPG,
           FileExtension.JPEG,
           FileExtension.PNG,
           FileExtension.WEBP,
-          FileExtension.BMP,
           FileExtension.AVIF,
+
           FileExtension.CBZ,
           FileExtension.CBR,
           FileExtension.CB7,
@@ -259,6 +260,15 @@ function initOnIpcCallbacks() {
           FileExtension.EPUB,
           FileExtension.MOBI,
           FileExtension.FB2,
+        ];
+      } else {
+        allowedFileTypesName = _("dialog-file-types-images");
+        allowedFileTypesList = [
+          FileExtension.JPG,
+          FileExtension.JPEG,
+          FileExtension.PNG,
+          FileExtension.WEBP,
+          FileExtension.AVIF,
         ];
       }
       let filePathsList = appUtils.chooseFiles(
@@ -275,7 +285,7 @@ function initOnIpcCallbacks() {
         const filePath = filePathsList[index];
         addPathToInputList(filePath);
       }
-    } catch (err) {
+    } catch (error) {
       // TODO: do something?
     }
   });
@@ -404,6 +414,7 @@ async function onStartClicked(inputList, selectedOptions) {
   }
 
   g_uiSelectedOptions = structuredClone(selectedOptions);
+
   // log.test(g_uiSelectedOptions);
   for (let index = 0; index < inputList.length; index++) {
     const inputListItem = inputList[index];
@@ -418,7 +429,10 @@ async function onStartClicked(inputList, selectedOptions) {
       }
     } else {
       // DIR
-      if (g_uiSelectedOptions.inputFoldersContain === "images") {
+      if (
+        g_uiSelectedOptions.inputFoldersContain === "images" &&
+        g_mode !== ToolMode.CONVERT_IMGS
+      ) {
         // folder content = comic book images
         if (!isAlreadyInInputList(inputListItem.path)) {
           g_inputFiles.push({
@@ -427,7 +441,7 @@ async function onStartClicked(inputList, selectedOptions) {
           });
         }
       } else {
-        // folder content = comic book files
+        // folder content = comic book files (imgs for convert images mode)
         let filesInFolder = [];
         if (g_uiSelectedOptions.inputSearchFoldersRecursively) {
           filesInFolder = fileUtils.getFilesInFolderRecursive(
@@ -435,45 +449,34 @@ async function onStartClicked(inputList, selectedOptions) {
             g_uiSelectedOptions.inputSearchFoldersFormats,
           );
         } else {
-          filesInFolder = fileUtils.getFilesInFolder(
-            inputListItem.path,
-            g_uiSelectedOptions.inputSearchFoldersFormats,
-          );
+          filesInFolder = fileUtils
+            .getFilesInFolder(
+              inputListItem.path,
+              g_uiSelectedOptions.inputSearchFoldersFormats,
+            )
+            .map((partialPath) => path.join(inputListItem.path, partialPath));
         }
-        if (g_uiSelectedOptions.inputSearchFoldersRecursively) {
-          for (let j = 0; j < filesInFolder.length; j++) {
-            const element = filesInFolder[j];
-            const filePath = element;
-            let type = await getFileType(filePath);
-            if (type != undefined && !isAlreadyInInputList(filePath)) {
-              if (
-                g_uiSelectedOptions.outputKeepSubfoldersStructure &&
-                g_uiSelectedOptions.inputFoldersContain === "comics"
-              ) {
-                let outputFolderPath = path.join(
-                  g_uiSelectedOptions.outputFolderPath,
-                  path.basename(inputListItem.path),
-                  path.relative(inputListItem.path, path.dirname(filePath)),
-                );
-                g_inputFiles.push({
-                  path: filePath,
-                  type: type,
-                  outputFolderPath,
-                });
-              } else {
-                g_inputFiles.push({
-                  path: filePath,
-                  type: type,
-                });
-              }
-            }
-          }
-        } else {
-          for (let j = 0; j < filesInFolder.length; j++) {
-            const element = filesInFolder[j];
-            const filePath = path.join(inputListItem.path, element);
-            let type = await getFileType(filePath);
-            if (type != undefined && !isAlreadyInInputList(filePath)) {
+        for (let j = 0; j < filesInFolder.length; j++) {
+          const element = filesInFolder[j];
+          const filePath = element;
+          let type = await getFileType(filePath);
+          if (type != undefined && !isAlreadyInInputList(filePath)) {
+            if (
+              g_uiSelectedOptions.outputKeepSubfoldersStructure &&
+              (g_uiSelectedOptions.inputFoldersContain === "comics" ||
+                g_mode === ToolMode.CONVERT_IMGS)
+            ) {
+              let outputFolderPath = path.join(
+                g_uiSelectedOptions.outputFolderPath,
+                path.basename(inputListItem.path),
+                path.relative(inputListItem.path, path.dirname(filePath)),
+              );
+              g_inputFiles.push({
+                path: filePath,
+                type: type,
+                outputFolderPath,
+              });
+            } else {
               g_inputFiles.push({
                 path: filePath,
                 type: type,
@@ -501,10 +504,7 @@ async function onStartClicked(inputList, selectedOptions) {
   timers.start("convert-comics");
   g_cancel = false;
   g_imageIndex = 0;
-  if (g_mode === ToolMode.CONVERT || g_mode === ToolMode.EXTRACT) {
-    g_uiSelectedOptions.outputFileBaseName = undefined;
-  } else {
-    // ToolMode.CREATE
+  if (g_mode === ToolMode.CREATE) {
     g_tempSubFolderPath = temp.createSubFolder();
     if (g_uiSelectedOptions.outputPageOrder === "byName") {
       g_inputFiles.sort((a, b) => {
@@ -516,6 +516,12 @@ async function onStartClicked(inputList, selectedOptions) {
         });
       });
     }
+  } else {
+    g_uiSelectedOptions.outputFileBaseName = undefined;
+  }
+  if (g_mode === ToolMode.CONVERT_IMGS) {
+    startConvertImages();
+    return true;
   }
   startNextFile();
   return true;
@@ -871,7 +877,7 @@ function end(wasCanceled, numFiles, numErrors, numAttempted) {
   }
   updateModalLogText("");
   if (!wasCanceled) {
-    if (g_mode === ToolMode.CONVERT) {
+    if (g_mode === ToolMode.CONVERT || g_mode === ToolMode.CONVERT_IMGS) {
       sendIpcToRenderer(
         "modal-update-title-text",
         _("tool-shared-modal-title-conversion-finished"),
@@ -930,7 +936,7 @@ function end(wasCanceled, numFiles, numErrors, numAttempted) {
   } else {
     sendIpcToRenderer(
       "modal-update-title-text",
-      g_mode === ToolMode.CONVERT
+      g_mode === ToolMode.CONVERT || g_mode === ToolMode.CONVERT_IMGS
         ? _("tool-shared-modal-title-conversion-canceled")
         : g_mode === ToolMode.EXTRACT
           ? _("tool-shared-modal-title-extraction-canceled")
@@ -938,7 +944,7 @@ function end(wasCanceled, numFiles, numErrors, numAttempted) {
     );
     sendIpcToRenderer(
       "update-info-text",
-      g_mode === ToolMode.CONVERT
+      g_mode === ToolMode.CONVERT || g_mode === ToolMode.CONVERT_IMGS
         ? _(
             "tool-shared-modal-info-conversion-results",
             numAttempted - numErrors,
@@ -966,53 +972,62 @@ function end(wasCanceled, numFiles, numErrors, numAttempted) {
 
 function stopError(error, errorMessage, nameAsError = true) {
   let uiMsg = errorMessage;
-  if (error) {
-    log.error(error);
-    if (error.message) {
-      uiMsg = (errorMessage ? errorMessage + "\n" : "") + error.message;
-      log.error(uiMsg);
-    } else {
-      const toString = error.toString();
-      if (
-        toString &&
-        toString !== "" &&
-        !toString.includes("[object Object]")
-      ) {
-        uiMsg = (errorMessage ? errorMessage + "\n" : "") + toString;
+  if (error !== "failed conversions") {
+    if (error) {
+      log.error(error);
+      if (error.message) {
+        uiMsg = (errorMessage ? errorMessage + "\n" : "") + error.message;
         log.error(uiMsg);
       } else {
-        uiMsg = (errorMessage ? errorMessage + "\n" : "") + "Unknown error";
-        log.error(uiMsg);
+        const toString = error.toString();
+        if (
+          toString &&
+          toString !== "" &&
+          !toString.includes("[object Object]")
+        ) {
+          uiMsg = (errorMessage ? errorMessage + "\n" : "") + toString;
+          log.error(uiMsg);
+        } else {
+          uiMsg = (errorMessage ? errorMessage + "\n" : "") + "Unknown error";
+          log.error(uiMsg);
+        }
       }
+    } else {
+      if (!uiMsg) uiMsg = "Unknown error";
+      if (nameAsError) log.error(errorMessage);
     }
-  } else {
-    if (!uiMsg) uiMsg = "Unknown error";
-    if (nameAsError) log.error(errorMessage);
   }
   temp.deleteSubFolder(g_tempSubFolderPath);
   g_tempSubFolderPath = undefined;
   temp.deleteSubFolder(g_creationTempSubFolderPath);
   g_creationTempSubFolderPath = undefined;
   if (nameAsError) {
-    updateModalLogText(uiMsg);
-    if (g_mode === ToolMode.CREATE) updateModalLogText("");
-    updateModalLogText(
-      g_mode === ToolMode.CONVERT
-        ? _("tool-shared-modal-log-conversion-error")
-        : g_mode === ToolMode.EXTRACT
-          ? _("tool-shared-modal-log-extraction-error")
-          : _("tool-shared-modal-log-creation-error"),
-    );
+    if (g_mode === ToolMode.CONVERT_IMGS) {
+    } else {
+      updateModalLogText(uiMsg);
+      if (g_mode === ToolMode.CREATE || g_mode === ToolMode.CONVERT_IMGS)
+        updateModalLogText("");
+      updateModalLogText(
+        g_mode === ToolMode.CONVERT
+          ? _("tool-shared-modal-log-conversion-error")
+          : g_mode === ToolMode.EXTRACT
+            ? _("tool-shared-modal-log-extraction-error")
+            : _("tool-shared-modal-log-creation-error"),
+      );
+    }
   } else {
-    // not really an error. if file is skipped, for example
-    updateModalLogText(
-      g_mode === ToolMode.CONVERT
-        ? _("tool-shared-modal-log-failed-conversion")
-        : g_mode === ToolMode.EXTRACT
-          ? _("tool-shared-modal-log-failed-extraction")
-          : _("tool-shared-modal-log-failed-creation"),
-    );
-    updateModalLogText(uiMsg);
+    if (g_mode === ToolMode.CONVERT_IMGS) {
+    } else {
+      // not really an error. if file is skipped, for example
+      updateModalLogText(
+        g_mode === ToolMode.CONVERT
+          ? _("tool-shared-modal-log-failed-conversion")
+          : g_mode === ToolMode.EXTRACT
+            ? _("tool-shared-modal-log-failed-extraction")
+            : _("tool-shared-modal-log-failed-creation"),
+      );
+      updateModalLogText(uiMsg);
+    }
   }
 
   updateModalLogText(" ");
@@ -1026,6 +1041,8 @@ function stopError(error, errorMessage, nameAsError = true) {
     } else {
       end(false, g_inputFiles.length, g_numErrors, g_inputFilesIndex + 1);
     }
+  } else if (g_mode === ToolMode.CONVERT_IMGS) {
+    end(false, g_inputFiles.length, g_numErrors, g_inputFilesIndex + 1);
   } else {
     end(
       false,
@@ -1042,7 +1059,7 @@ function stopCancel() {
   temp.deleteSubFolder(g_creationTempSubFolderPath);
   g_creationTempSubFolderPath = undefined;
   updateModalLogText(
-    g_mode === ToolMode.CONVERT
+    g_mode === ToolMode.CONVERT || g_mode === ToolMode.CONVERT_IMGS
       ? _("tool-shared-modal-log-conversion-canceled")
       : g_mode === ToolMode.EXTRACT
         ? _("tool-shared-modal-log-extraction-canceled")
@@ -1131,21 +1148,21 @@ async function getFileType(filePath) {
       return FileDataType.EPUB_EBOOK;
     }
   } else if (
-    detectedFileType === FileDataType.PDF ||
-    detectedFileType === FileDataType.RAR ||
-    detectedFileType === FileDataType.ZIP ||
-    detectedFileType === FileDataType.SEVENZIP ||
-    detectedFileType === FileDataType.MOBI ||
-    detectedFileType === FileDataType.AZW3 ||
-    detectedFileType === FileDataType.FB2
+    g_mode !== ToolMode.CONVERT_IMGS &&
+    (detectedFileType === FileDataType.PDF ||
+      detectedFileType === FileDataType.RAR ||
+      detectedFileType === FileDataType.ZIP ||
+      detectedFileType === FileDataType.SEVENZIP ||
+      detectedFileType === FileDataType.MOBI ||
+      detectedFileType === FileDataType.AZW3 ||
+      detectedFileType === FileDataType.FB2)
   ) {
     return detectedFileType;
   } else if (
-    g_mode === ToolMode.CREATE &&
+    (g_mode === ToolMode.CREATE || g_mode === ToolMode.CONVERT_IMGS) &&
     (detectedFileType === FileDataType.JPG ||
       detectedFileType === FileDataType.PNG ||
       detectedFileType === FileDataType.WEBP ||
-      detectedFileType === FileDataType.BMP ||
       detectedFileType === FileDataType.AVIF)
   ) {
     return FileDataType.IMG;
@@ -1224,36 +1241,19 @@ async function processContent() {
     ///////////////////////////////////////////////
     // CHECK REQUIREMENTS /////////////////////////
     ///////////////////////////////////////////////
-    let resizeNeeded = false;
-    let imageOpsNeeded = false;
+    let resizeNeeded = isResizeNeeded();
+    let imageOpsNeeded = areImageOpsNeeded();
     let updateComicInfoNeeded =
       comicInfoFilePath &&
       (g_uiSelectedOptions.outputFormat === FileExtension.CBZ ||
-        g_uiSelectedOptions.outputFormat === FileExtension.CB7) &&
+        g_uiSelectedOptions.outputFormat === FileExtension.CB7 ||
+        g_uiSelectedOptions.outputFormat === FileExtension.CBR) &&
       (g_uiSelectedOptions.outputImageFormat != FileExtension.NOT_SET ||
         resizeNeeded ||
         imageOpsNeeded);
     g_uiSelectedOptions.outputImageScalePercentage = parseInt(
       g_uiSelectedOptions.outputImageScalePercentage,
     );
-    if (
-      g_uiSelectedOptions.outputImageScaleOption !== "0" ||
-      g_uiSelectedOptions.outputImageScalePercentage < 100
-    ) {
-      resizeNeeded = true;
-    }
-    if (
-      g_uiSelectedOptions.outputLevelsApply ||
-      g_uiSelectedOptions.outputGammaApply ||
-      g_uiSelectedOptions.outputBrightnessApply ||
-      g_uiSelectedOptions.outputSaturationApply ||
-      (g_uiSelectedOptions.outputCropApply &&
-        g_uiSelectedOptions.outputCropValue > 0) ||
-      (g_uiSelectedOptions.outputExtendApply &&
-        g_uiSelectedOptions.outputExtendValue > 0)
-    ) {
-      imageOpsNeeded = true;
-    }
     if (g_cancel === true) {
       stopCancel();
       return;
@@ -1269,47 +1269,53 @@ async function processContent() {
       g_uiSelectedOptions.outputImageFormat != FileExtension.NOT_SET
     ) {
       log.debug("[CC] " + _("tool-shared-modal-log-converting-images"));
-      switch (
-        parseInt(g_uiSelectedOptions.imageProcessingMultithreadingMethod)
-      ) {
-        case 1:
-          {
-            const result = await processImages({
-              imgFilePaths,
-              resizeNeeded,
-              imageOpsNeeded,
-              updateModalLogText,
-              modalInfoText: _("tool-shared-modal-log-converting-image"),
-              uiSelectedOptions: g_uiSelectedOptions,
-              getCancel: () => {
-                return g_cancel;
-              },
-            });
-            if (result.state === "error") {
-              stopError(result.error);
+      try {
+        log.editor("[CC] starting worker (process images)");
+        killWorker();
+        g_worker = forkUtils.fork(
+          path.join(__dirname, "../../shared/main/tools-worker-process.js"),
+        );
+        await new Promise((resolve, reject) => {
+          g_worker.on("message", (message) => {
+            if (message.type === "testLog") {
+              log.test(message.log);
               return;
-            }
-          }
-          break;
-        default:
-          {
-            const result = await processImagesWithWorkers({
-              imgFilePaths,
-              resizeNeeded,
-              imageOpsNeeded,
-              updateModalLogText,
-              modalInfoText: _("tool-shared-modal-log-converting-image"),
-              uiSelectedOptions: g_uiSelectedOptions,
-              getCancel: () => {
-                return g_cancel;
-              },
-            });
-            if (result.state === "error") {
-              stopError(result.error);
+            } else if (message.type === "editorLog") {
+              log.editor("[CC] " + message.log);
               return;
+            } else if (message.type === "modalLog") {
+              updateModalLogText(message.log);
+              return;
+            } else {
+              if (message.success) {
+                log.debug("[CC] images processed: " + message.state);
+                imgFilePaths = message.imgFilePaths;
+                resolve();
+              } else {
+                log.debug("[CC] images NOT processed correctly");
+                reject(message.error);
+              }
             }
-          }
-          break;
+          });
+          g_worker.on("exit", (code) => {
+            if (code !== 0) {
+              reject(new Error(`worker exited with code ${code}`));
+            }
+          });
+          g_worker.postMessage([
+            core.getLaunchInfo(),
+            "process-images",
+            imgFilePaths,
+            resizeNeeded,
+            imageOpsNeeded,
+            _("tool-shared-modal-log-converting-image"),
+            g_uiSelectedOptions,
+          ]);
+        });
+        killWorker();
+      } catch (error) {
+        stopError(error);
+        return;
       }
       if (g_cancel === true) {
         stopCancel();
@@ -1323,73 +1329,58 @@ async function processContent() {
       // update comicbook.xml if available, needs changing and the output format
       // is right
       try {
-        const {
-          XMLParser,
-          XMLBuilder,
-          XMLValidator,
-        } = require("fast-xml-parser");
-        const xmlFileData = fs.readFileSync(comicInfoFilePath, "utf8");
-        const isValidXml = XMLValidator.validate(xmlFileData);
-        if (isValidXml === true) {
-          // open
-          const parserOptions = {
-            ignoreAttributes: false,
-          };
-          const parser = new XMLParser(parserOptions);
-          let json = parser.parse(xmlFileData);
-          // modify
-          updateModalLogText(_("tool-shared-modal-log-updating-comicinfoxml"));
-
-          if (!json["ComicInfo"]["Pages"]) {
-            json["ComicInfo"]["Pages"] = {};
-          }
-          if (!json["ComicInfo"]["Pages"]["Page"]) {
-            json["ComicInfo"]["Pages"]["Page"] = [];
-          }
-
-          json["ComicInfo"]["PageCount"] = imgFilePaths.length;
-          let oldPagesArray = json["ComicInfo"]["Pages"]["Page"].slice();
-          json["ComicInfo"]["Pages"]["Page"] = [];
-          for (let index = 0; index < imgFilePaths.length; index++) {
-            let pageData = {
-              "@_Image": "",
-              "@_ImageSize": "",
-              "@_ImageWidth": "",
-              "@_ImageHeight": "",
-            };
-            if (oldPagesArray.length > index) {
-              pageData = oldPagesArray[index];
-            }
-            let filePath = imgFilePaths[index];
-            pageData["@_Image"] = index;
-            let fileStats = fs.statSync(filePath);
-            let fileSizeInBytes = fileStats.size;
-            pageData["@_ImageSize"] = fileSizeInBytes;
-            const sharp = require("sharp");
-            const metadata = await sharp(filePath).metadata();
-            pageData["@_ImageWidth"] = metadata.width;
-            pageData["@_ImageHeight"] = metadata.height;
-            json["ComicInfo"]["Pages"]["Page"].push(pageData);
-          }
-          // rebuild
-          const builderOptions = {
-            ignoreAttributes: false,
-            format: true,
-          };
-          const builder = new XMLBuilder(builderOptions);
-          let outputXmlData = builder.build(json);
-          fs.writeFileSync(comicInfoFilePath, outputXmlData);
-        } else {
-          throw "ComicInfo.xml is not a valid xml file";
-        }
-      } catch (error) {
-        log.debug(
-          "[CC] " +
-            "Warning: couldn't update the contents of ComicInfo.xml: " +
-            error,
+        log.editor("[CC] starting worker (update-comicinfo)");
+        killWorker();
+        g_worker = forkUtils.fork(
+          path.join(__dirname, "../../shared/main/tools-worker-process.js"),
         );
-        updateModalLogText(_("tool-shared-modal-log-warning-comicinfoxml"));
-        updateModalLogText(error);
+        await new Promise((resolve, reject) => {
+          g_worker.on("message", (message) => {
+            if (message.type === "testLog") {
+              log.test(message.log);
+              return;
+            } else if (message.type === "editorLog") {
+              log.editor("[CC] " + message.log);
+              return;
+            } else if (message.type === "modalLog") {
+              updateModalLogText(message.log);
+              return;
+            } else {
+              if (message.success) {
+                log.debug("[CC] ComicInfo.xml successfully updated");
+                resolve();
+              } else {
+                log.debug(
+                  "[CC] " +
+                    "Warning: couldn't update the contents of ComicInfo.xml: " +
+                    message.error,
+                );
+                updateModalLogText(
+                  _("tool-shared-modal-log-warning-comicinfoxml"),
+                );
+                updateModalLogText(message.error);
+                // don't error out, go on
+                resolve();
+              }
+            }
+          });
+          g_worker.on("exit", (code) => {
+            if (code !== 0) {
+              reject(new Error(`worker exited with code ${code}`));
+            }
+          });
+          g_worker.postMessage([
+            core.getLaunchInfo(),
+            "update-comicinfo",
+            comicInfoFilePath,
+            imgFilePaths,
+            _("tool-shared-modal-log-updating-comicinfoxml"),
+          ]);
+        });
+        killWorker();
+      } catch (error) {
+        stopError(error);
+        return;
       }
     }
     ///////////////////////////////////////////////
@@ -1534,37 +1525,6 @@ async function createFilesFromImages(
   }
 }
 
-// async function createFolderWithImages(imgFilePaths, outputFolderPath) {
-//   if (g_cancel === true) {
-//     stopCancel();
-//     return;
-//   }
-//   try {
-//     sendIpcToRenderer(
-//       "update-log-text",
-//       _("tool-ec-modal-log-extracting-to") + ":",
-//     );
-//     sendIpcToRenderer("update-log-text", outputFolderPath);
-//     // create subFolderPath
-//     if (!fs.existsSync(outputFolderPath)) {
-//       fs.mkdirSync(outputFolderPath);
-//       for (let index = 0; index < imgFilePaths.length; index++) {
-//         let oldPath = imgFilePaths[index];
-//         log.test(oldPath);
-//         let newPath = path.join(outputFolderPath, path.basename(oldPath));
-//         fileUtils.moveFile(oldPath, newPath);
-//       }
-//       temp.deleteSubFolder(g_tempSubFolderPath);
-//       g_tempSubFolderPath = undefined;
-//       sendIpcToRenderer("file-finished-ok");
-//     } else {
-//       stopError("tool-ec folder shouldn't exist");
-//     }
-//   } catch (error) {
-//     stopError(error);
-//   }
-// }
-
 async function createFolderWithImages(imgFilePaths, outputFolderPath) {
   if (g_cancel === true) {
     stopCancel();
@@ -1598,6 +1558,115 @@ async function createFolderWithImages(imgFilePaths, outputFolderPath) {
   }
 }
 
+function isResizeNeeded() {
+  if (
+    g_uiSelectedOptions.outputImageScaleOption !== "0" ||
+    g_uiSelectedOptions.outputImageScalePercentage < 100
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function areImageOpsNeeded() {
+  if (
+    g_uiSelectedOptions.outputLevelsApply ||
+    g_uiSelectedOptions.outputGammaApply ||
+    g_uiSelectedOptions.outputBrightnessApply ||
+    g_uiSelectedOptions.outputSaturationApply ||
+    (g_uiSelectedOptions.outputCropApply &&
+      g_uiSelectedOptions.outputCropValue > 0) ||
+    (g_uiSelectedOptions.outputExtendApply &&
+      g_uiSelectedOptions.outputExtendValue > 0)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// CONVERT IMGS TOOL //////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+async function startConvertImages() {
+  try {
+    sendIpcToRenderer(
+      "modal-update-title-text",
+      _("tool-shared-modal-title-converting"),
+    );
+    sendIpcToRenderer(
+      "update-log-text",
+      _("tool-shared-modal-log-converting-images") + "...",
+    );
+    g_tempSubFolderPath = temp.createSubFolder();
+    try {
+      log.editor("[CC] starting worker (process images)");
+      killWorker();
+      g_worker = forkUtils.fork(
+        path.join(__dirname, "../../shared/main/tools-worker-process.js"),
+      );
+      await new Promise((resolve, reject) => {
+        g_worker.on("message", (message) => {
+          if (message.type === "testLog") {
+            log.test(message.log);
+            return;
+          } else if (message.type === "editorLog") {
+            log.editor("[CC] " + message.log);
+            return;
+          } else if (message.type === "modalLog") {
+            updateModalLogText(message.log);
+            return;
+          } else {
+            g_inputFilesIndex = message.numAttempts;
+            g_numErrors = message.numErrors;
+            g_failedFilePaths = message.failedFilePaths;
+            if (message.success) {
+              log.debug("[CC] images processed: " + message.state);
+              resolve();
+            } else {
+              log.debug("[CC] images NOT processed correctly");
+              reject(message.error);
+            }
+          }
+        });
+        g_worker.on("exit", (code) => {
+          if (code !== 0) {
+            reject(new Error(`worker exited with code ${code}`));
+          }
+        });
+        g_worker.postMessage([
+          core.getLaunchInfo(),
+          "images-tool-work",
+          g_inputFiles,
+          g_tempSubFolderPath,
+          isResizeNeeded(),
+          areImageOpsNeeded(),
+          g_uiSelectedOptions,
+          _("tool-shared-modal-log-converting-image"),
+          _("tool-ec-modal-log-extracting-to"),
+          "tool-shared-modal-log-failed-conversion" +
+            "\n" +
+            _("tool-shared-modal-log-failed-reason-output-file-exists"),
+        ]);
+      });
+      killWorker();
+      if (g_cancel === true) {
+        stopCancel();
+        return;
+      }
+    } catch (error) {
+      stopError(error);
+      return;
+    }
+    temp.deleteSubFolder(g_tempSubFolderPath);
+    g_tempSubFolderPath = undefined;
+    updateModalLogText("");
+    end(false, g_inputFiles.length, g_numErrors, g_inputFilesIndex + 1);
+  } catch (error) {
+    stopError(error);
+  }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // WORKER /////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -1626,7 +1695,7 @@ function updateLocalizedText() {
   sendIpcToRenderer(
     "update-localization",
     localization.getLocalization(g_mode),
-    localization.getTooltipsLocalization(),
+    localization.getTooltipsLocalization(g_mode),
     localization.getLocalizedTexts(),
   );
 }

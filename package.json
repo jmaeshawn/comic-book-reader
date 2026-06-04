@@ -1,7 +1,7 @@
 {
   "name": "acbr-comic-book-reader",
-  "version": "3.21.4",
-  "description": "Comic book reader and converter for CBZ, CBR, CB7, EPUB, MOBI, FB2 and PDF files",
+  "version": "3.22.0",
+  "description": "Comic book reader and converter for CBZ, CBR, CB7, EPUB, MOBI 7, FB2 and PDF files",
   "main": "./src/core/main.js",
   "author": "Álvaro García (www.binarynonsense.com)",
   "license": "AGPL-3.0-or-later",
@@ -46,6 +46,10 @@
           "to": "bin/mupdf/win"
         }
       ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     },
     "linux": {
       "category": "Graphics",
@@ -92,18 +96,16 @@
         "--share=network",
         "--device=all",
         "--filesystem=/run/udev:ro",
-        "--env=G_SLICE=always-malloc",
         "--env=XCURSOR_PATH=/run/host/user-share/icons:/run/host/share/icons"
       ],
       "license": "./licenses/acbr.txt",
-      "baseVersion": "24.08",
-      "runtimeVersion": "24.08"
+      "baseVersion": "25.08",
+      "runtimeVersion": "25.08"
     }
   },
   "scripts": {
     "start": "electron . --dev",
     "start:safe": "systemd-run --user --scope -p MemoryMax=4G -p MemorySwapMax=0 electron . --dev --js-flags=\"--expose-gc\"",
-    "start:glib": "export G_SLICE=always-malloc && electron . --dev",
     "dist:linux": "npm run chmod-bins:linux && npm run build:linux && npm run extras:linux",
     "dist:windows": "npm run build:windows && npm run extras:windows",
     "dist:cross": "npm run dist:cross-windows && npm run dist:cross-linux",
@@ -114,7 +116,7 @@
     "sharp:windows": "del-cli ./node_modules/sharp && npm install --platform=win32 --arch=x64 sharp",
     "sharp:linux": "del-cli ./node_modules/sharp && npm install --platform=linux --arch=x64 sharp",
     "chmod-bins:linux": "shx chmod +x node_modules/7zip-bin/linux/x64/7za && shx chmod +x src/assets/bin/7zip/linux/7zz && shx chmod +x src/assets/bin/mupdf/linux/mutool",
-    "extras:linux": "echo '#!/bin/bash\\nexport G_SLICE=always-malloc && ./acbr-comic-book-reader \"$@\"' > ./dist/linux-unpacked/ACBR.sh && shx chmod +x ./dist/linux-unpacked/ACBR.sh && echo '#!/bin/bash\\nexport G_SLICE=always-malloc && ./acbr-comic-book-reader.AppImage \"$@\"' > ./dist/ACBR.sh && shx chmod +x ./dist/ACBR.sh && echo '#!/bin/bash\\nexport G_SLICE=always-malloc && acbr-comic-book-reader \"$@\"' > ./dist/ACBR_deb.sh && shx chmod +x ./dist/ACBR_deb.sh && echo ${npm_package_version} > ./dist/linux-unpacked/VERSION && echo ${npm_package_version} > ./dist/VERSION",
+    "extras:linux": "echo ${npm_package_version} > ./dist/linux-unpacked/VERSION && echo ${npm_package_version} > ./dist/VERSION",
     "extras:windows": "echo %npm_package_version% > ./dist/win-unpacked/VERSION",
     "licenses": "node ./tools/generate-licenses.js && npm run localization licenses",
     "localization:update": "node ./tools/localization.js update all",
@@ -145,7 +147,7 @@
     "pdfkit": "0.17.2",
     "qrcode": "1.5.4",
     "sanitize-html": "2.17.0",
-    "sharp": "0.33.5",
+    "sharp": "0.34.5",
     "tesseract.js": "3.0.3"
   }
 }

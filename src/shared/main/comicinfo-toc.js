@@ -122,6 +122,11 @@ function normalizeComicInfoPageType(type) {
   }
 }
 
+function normalizeMangaDirection(value) {
+  if (value === undefined || value === null) return undefined;
+  return String(value).trim().toLowerCase();
+}
+
 function parsePageLayoutFromComicInfoXml(xml, numPages) {
   if (!xml || typeof xml !== "string") return [];
 
@@ -139,6 +144,7 @@ function parsePageLayoutFromComicInfoXml(xml, numPages) {
     const pageNodes = normalizePageNodes(json?.ComicInfo?.Pages);
 
     const pageLayout = new Array(numPages).fill(undefined);
+    let hasExplicitSidePage = false;
     for (const page of pageNodes) {
       if (page?.Image === undefined || page?.Type === undefined) continue;
 
@@ -154,6 +160,23 @@ function parsePageLayoutFromComicInfoXml(xml, numPages) {
       }
 
       pageLayout[pageIndex] = pageType;
+      if (pageType === "rightpage" || pageType === "leftpage") {
+        hasExplicitSidePage = true;
+      }
+    }
+
+    if (pageLayout[0] === "frontcover" && !hasExplicitSidePage) {
+      const isRightToLeft =
+        normalizeMangaDirection(json?.ComicInfo?.Manga) ===
+        "yesandrighttoleft";
+
+      for (let pageIndex = 1; pageIndex < numPages; pageIndex++) {
+        if (pageLayout[pageIndex] !== undefined) continue;
+
+        const isFirstSide = pageIndex % 2 === 1;
+        const isRightPage = isRightToLeft ? isFirstSide : !isFirstSide;
+        pageLayout[pageIndex] = isRightPage ? "rightpage" : "leftpage";
+      }
     }
 
     return pageLayout;
@@ -185,10 +208,7 @@ function parseMangaDirectionFromComicInfoXml(xml) {
       trimValues: true,
     });
     const json = parser.parse(xml);
-    const mangaValue = json?.ComicInfo?.Manga;
-    if (mangaValue === undefined || mangaValue === null) return undefined;
-
-    return String(mangaValue).trim().toLowerCase();
+    return normalizeMangaDirection(json?.ComicInfo?.Manga);
   } catch (error) {
     log.debug("ComicInfo.xml Manga direction parsing failed");
     log.error(error);

@@ -18,6 +18,7 @@ const ToolMode = {
   CONVERT: 0,
   CREATE: 1,
   EXTRACT: 2,
+  CONVERT_IMGS: 3,
 };
 let g_mode = ToolMode.CONVERT;
 
@@ -115,6 +116,10 @@ function init(
       .getElementById("tool-cc-add-folder-button")
       .parentElement.classList.add("set-display-none");
     document
+      .getElementById("tool-cc-add-folder-button-2")
+      .parentElement.classList.add("set-display-none");
+    ///
+    document
       .getElementById("tool-cc-output-name-label")
       .classList.add("set-display-none");
     document
@@ -145,6 +150,44 @@ function init(
     //
     document
       .getElementById("tool-cc-advanced-output-options-section-div")
+      .classList.add("set-display-none");
+  } else if (g_mode === ToolMode.CONVERT_IMGS) {
+    // BRUTE FORCE DISABLE
+    document
+      .getElementById("tool-cc-output-name-label")
+      .classList.add("set-display-none");
+    document
+      .getElementById("tool-cc-output-page-order-label")
+      .classList.add("set-display-none");
+    document
+      .getElementById("tool-cc-output-format-text")
+      .parentElement.classList.add("set-display-none");
+    Array.from(
+      document.getElementById("tool-cc-advanced-input-options-section-div")
+        ?.children[1].children,
+    ).forEach((element, index) => {
+      if (index > 1) {
+        element.classList.add("set-display-none");
+      }
+    });
+    //////
+    Array.from(
+      document.getElementById("tool-cc-advanced-output-options-section-div")
+        ?.children[1].children,
+    ).forEach((element, index) => {
+      if (index > 1) {
+        element.classList.add("set-display-none");
+      }
+    });
+    /////
+    document
+      .getElementById("tool-cc-imageprocessing-multithreading-method-text")
+      .parentElement.classList.add("set-display-none");
+    document
+      .getElementById("tool-cc-imageprocessing-multithreading-method-select")
+      .classList.add("set-display-none");
+    document
+      .getElementById("tool-cc-imageprocessing-multithreading-method-0-div")
       .classList.add("set-display-none");
   }
   ////////////////////////////////////////
@@ -242,7 +285,7 @@ function init(
   const outputFolderOptionSelect = document.getElementById(
     "tool-cc-output-folder-option-select",
   );
-  if (g_mode === ToolMode.CONVERT) {
+  if (g_mode === ToolMode.CONVERT || g_mode === ToolMode.CONVERT_IMGS) {
     outputFolderOptionSelect.innerHTML =
       `<option value="0">${g_localizedTexts.outputFolderOption0}</option>` +
       `<option value="1">${g_localizedTexts.outputFolderOption1}</option>`;
@@ -278,16 +321,25 @@ function init(
     checkValidData();
   });
 
-  g_outputImageFormatSelect.innerHTML =
-    '<option value="' +
-    FileExtension.NOT_SET +
-    '">' +
-    g_localizedTexts.outputImageFormatNotSet +
-    "</option>" +
-    '<option value="jpg">jpg</option>' +
-    '<option value="png">png</option>' +
-    '<option value="webp">webp</option>' +
-    '<option value="avif">avif</option>';
+  if (g_mode === ToolMode.CONVERT_IMGS) {
+    g_outputImageFormatSelect.innerHTML =
+      '<option value="jpg">jpg</option>' +
+      '<option value="png">png</option>' +
+      '<option value="webp">webp</option>' +
+      '<option value="avif">avif</option>';
+  } else {
+    g_outputImageFormatSelect.innerHTML =
+      '<option value="' +
+      FileExtension.NOT_SET +
+      '">' +
+      g_localizedTexts.outputImageFormatNotSet +
+      "</option>" +
+      '<option value="jpg">jpg</option>' +
+      '<option value="png">png</option>' +
+      '<option value="webp">webp</option>' +
+      '<option value="avif">avif</option>';
+  }
+
   g_outputImageFormatSelect.addEventListener("change", (event) => {
     checkValidData();
   });
@@ -336,7 +388,11 @@ function init(
 
   // conversion / creation //
   g_outputNameInput = document.querySelector("#tool-cc-output-name-input");
-  if (g_mode === ToolMode.CONVERT || g_mode === ToolMode.EXTRACT) {
+  if (
+    g_mode === ToolMode.CONVERT ||
+    g_mode === ToolMode.CONVERT_IMGS ||
+    g_mode === ToolMode.EXTRACT
+  ) {
     document
       .getElementById("tool-cc-output-page-order-label")
       .classList.add("set-display-none");
@@ -363,6 +419,8 @@ function init(
   let formats = [];
   if (g_mode === ToolMode.CONVERT || g_mode === ToolMode.EXTRACT) {
     formats = [".cbz", ".cbr", ".pdf", ".epub", ".cb7", ".mobi", ".fb2"];
+  } else if (g_mode === ToolMode.CONVERT_IMGS) {
+    formats = [".jpg", ".png", ".webp", ".avif"];
   } else {
     formats = [
       ".cbz",
@@ -667,7 +725,11 @@ function updateUISelectedOptions() {
   if (g_mode === ToolMode.EXTRACT)
     g_uiSelectedOptions.outputFormat = "imgs_folder";
   g_uiSelectedOptions.outputImageFormat = g_outputImageFormatSelect.value;
-  if (g_mode === ToolMode.CONVERT || g_mode === ToolMode.EXTRACT) {
+  if (
+    g_mode === ToolMode.CONVERT ||
+    g_mode === ToolMode.CONVERT_IMGS ||
+    g_mode === ToolMode.EXTRACT
+  ) {
     g_uiSelectedOptions.outputFileBaseName = "";
   } else {
     g_uiSelectedOptions.outputFileBaseName = g_outputNameInput.value;
@@ -773,7 +835,7 @@ function updateUISelectedOptions() {
 ///////////////////////////////////////////////////////////////////////////////
 
 function updateFolderOptionUI() {
-  if (g_mode === ToolMode.CONVERT) {
+  if (g_mode === ToolMode.CONVERT || g_mode === ToolMode.CONVERT_IMGS) {
     const outputFolderOptionSelect = document.getElementById(
       "tool-cc-output-folder-option-select",
     );
@@ -818,6 +880,7 @@ function updateEpubEbookUI() {
 }
 
 function updateImageMultithreadingUI() {
+  if (g_mode === ToolMode.CONVERT_IMGS) return;
   const imageMultithreadingSelect = document.getElementById(
     "tool-cc-imageprocessing-multithreading-method-select",
   );
@@ -1307,12 +1370,13 @@ function checkValidData() {
     "#tool-cc-keep-subfolders-structure-toggle",
   );
 
-  if (g_mode === ToolMode.CONVERT) {
+  if (g_mode === ToolMode.CONVERT || g_mode === ToolMode.CONVERT_IMGS) {
     outputKeepSubfoldersStructureDiv.classList.remove("set-display-none");
     if (
       document.getElementById("tool-cc-output-folder-option-select").value ===
         "0" &&
-      document.getElementById("tool-cc-folders-recursively-checkbox").checked &&
+      //   &&
+      // document.getElementById("tool-cc-folders-recursively-checkbox").checked
       document.getElementById("tool-cc-folders-contain-select").value ===
         "comics"
     ) {
@@ -1322,6 +1386,20 @@ function checkValidData() {
     }
   } else {
     outputKeepSubfoldersStructureDiv.classList.add("set-display-none");
+  }
+  ///
+  if (g_mode === ToolMode.CONVERT) {
+    const checkbox = document.getElementById(
+      "tool-cc-folders-recursively-checkbox",
+    );
+    if (
+      document.getElementById("tool-cc-folders-contain-select").value ===
+      "comics"
+    ) {
+      checkbox.parentElement.classList.remove("tools-disabled");
+    } else {
+      checkbox.parentElement.classList.add("tools-disabled");
+    }
   }
   ///////////////////
   const folderContentsSelect = document.querySelector(
@@ -1344,7 +1422,7 @@ function checkValidData() {
         .querySelector("#tool-cc-folders-file-formats-text")
         .parentElement.classList.add("set-display-none");
     }
-  } else if (g_mode === ToolMode.CREATE) {
+  } else if (g_mode === ToolMode.CREATE || g_mode === ToolMode.CONVERT_IMGS) {
     folderContentsSelect.parentElement.classList.add("set-display-none");
     document
       .querySelector("#tool-cc-folders-file-formats-text")

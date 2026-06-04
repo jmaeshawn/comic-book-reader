@@ -21,6 +21,8 @@ const fileUtils = require("./file-utils");
 // const controller = new AbortController();
 // const { signal } = controller;
 
+let g_cancel;
+
 process.parentPort.on("message", async (event) => {
   let message = event.data;
   send({
@@ -31,13 +33,27 @@ process.parentPort.on("message", async (event) => {
     extractImages(...message.slice(2));
   } else if (message[1] === "create") {
     createFiles(...message.slice(2));
+  } else if (message[1] === "process-images") {
+    g_cancel = false;
+    processImages(...message.slice(2));
+  } else if (message[1] === "images-tool-work") {
+    g_cancel = false;
+    doImagesToolWork(...message.slice(2));
+  } else if (message[1] === "update-comicinfo") {
+    updateComicInfo(...message.slice(2));
+  } else if (message[1] === "update-comicinfo-data") {
+    updateComicInfoData(...message.slice(2));
   } else if (message[1] === "cancel") {
+    g_cancel = true;
     // controller.abort();
     fileFormats.stopMuPdfExtraction();
     fileFormats.stopMuEpubExtraction();
     fileFormats.stop7zExtraction();
   }
 });
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 async function extractImages(
   inputFilePath,
@@ -141,6 +157,8 @@ async function extractImages(
   }
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
 async function createFiles(
   baseFileName,
   outputFolderPath,
@@ -174,7 +192,13 @@ async function createFiles(
       );
 
       if (fs.existsSync(outputFilePath)) {
-        if (outputFileSameName === "rename") {
+        if (outputFileSameName === "overwrite") {
+          // do nothing
+        } else if (outputFileSameName === "skip") {
+          // shouldn't be here
+          throw "file already exists";
+        } else {
+          // "rename"
           let i = 1;
           while (fs.existsSync(outputFilePath)) {
             i++;
@@ -183,10 +207,6 @@ async function createFiles(
               baseFileName + " (" + i + ")." + outputFormat,
             );
           }
-        } else if (outputFileSameName === "skip") {
-          // skip
-          // shouldn't be here
-          throw "file already exists";
         }
       }
       filesData.push({
@@ -199,7 +219,13 @@ async function createFiles(
       outputSubFolderPath = path.join(outputFolderPath, baseFileName);
 
       if (fs.existsSync(outputSubFolderPath)) {
-        if (outputFileSameName == "rename") {
+        if (outputFileSameName === "overwrite") {
+          // do nothing
+        } else if (outputFileSameName === "skip") {
+          // shouldn't be here
+          throw "file already exists";
+        } else {
+          // "rename"
           let i = 1;
           while (fs.existsSync(outputSubFolderPath)) {
             i++;
@@ -208,10 +234,6 @@ async function createFiles(
               baseFileName + " (" + i + ")",
             );
           }
-        } else if (outputFileSameName == "skip") {
-          // skip
-          // shouldn't be here
-          throw "file already exists";
         }
       }
 
@@ -331,6 +353,318 @@ async function createFiles(
   }
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
+async function processImages(
+  imgFilePaths,
+  resizeNeeded,
+  imageOpsNeeded,
+  modalInfoText,
+  uiSelectedOptions,
+) {
+  try {
+    const {
+      processImages,
+      processImagesWithWorkers,
+    } = require("./tools-process-images");
+
+    let result;
+    switch (parseInt(uiSelectedOptions.imageProcessingMultithreadingMethod)) {
+      case 1:
+        result = await processImages({
+          imgFilePaths,
+          resizeNeeded,
+          imageOpsNeeded,
+          updateModalLogText,
+          modalInfoText,
+          uiSelectedOptions,
+          getCancel: () => {
+            return g_cancel;
+          },
+        });
+        break;
+      default:
+        result = await processImagesWithWorkers({
+          imgFilePaths,
+          resizeNeeded,
+          imageOpsNeeded,
+          updateModalLogText,
+          modalInfoText,
+          uiSelectedOptions,
+          getCancel: () => {
+            return g_cancel;
+          },
+        });
+        break;
+    }
+    if (result.state === "error") {
+      throw result.error;
+    } else {
+      send({ success: true, state: result.state, imgFilePaths });
+    }
+  } catch (error) {
+    send({
+      success: false,
+      error: error,
+    });
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+async function updateComicInfo(comicInfoFilePath, imgFilePaths, updatingText) {
+  try {
+    const { XMLParser, XMLBuilder, XMLValidator } = require("fast-xml-parser");
+    const xmlFileData = fs.readFileSync(comicInfoFilePath, "utf8");
+    const isValidXml = XMLValidator.validate(xmlFileData);
+    if (isValidXml === true) {
+      // open
+      const parserOptions = {
+        ignoreAttributes: false,
+      };
+      const parser = new XMLParser(parserOptions);
+      let json = parser.parse(xmlFileData);
+      // modify
+      updateModalLogText(updatingText);
+
+      if (!json["ComicInfo"]["Pages"]) {
+        json["ComicInfo"]["Pages"] = {};
+      }
+      if (!json["ComicInfo"]["Pages"]["Page"]) {
+        json["ComicInfo"]["Pages"]["Page"] = [];
+      }
+
+      json["ComicInfo"]["PageCount"] = imgFilePaths.length;
+      let oldPagesArray = json["ComicInfo"]["Pages"]["Page"].slice();
+      json["ComicInfo"]["Pages"]["Page"] = [];
+      for (let index = 0; index < imgFilePaths.length; index++) {
+        let pageData = {
+          "@_Image": "",
+          "@_ImageSize": "",
+          "@_ImageWidth": "",
+          "@_ImageHeight": "",
+        };
+        if (oldPagesArray.length > index) {
+          pageData = oldPagesArray[index];
+        }
+        let filePath = imgFilePaths[index];
+        pageData["@_Image"] = index;
+        let fileStats = fs.statSync(filePath);
+        let fileSizeInBytes = fileStats.size;
+        pageData["@_ImageSize"] = fileSizeInBytes;
+        const sharp = require("sharp");
+        const metadata = await sharp(filePath).metadata();
+        pageData["@_ImageWidth"] = metadata.width;
+        pageData["@_ImageHeight"] = metadata.height;
+        json["ComicInfo"]["Pages"]["Page"].push(pageData);
+      }
+      // rebuild
+      const builderOptions = {
+        ignoreAttributes: false,
+        format: true,
+        suppressBooleanAttributes: false, // keek booleans like ="true"
+      };
+      const builder = new XMLBuilder(builderOptions);
+      let outputXmlData = builder.build(json);
+      fs.writeFileSync(comicInfoFilePath, outputXmlData);
+
+      send({ success: true });
+    } else {
+      throw "ComicInfo.xml is not a valid xml file";
+    }
+  } catch (error) {
+    send({
+      success: false,
+      error: error,
+    });
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+async function updateComicInfoData(data, tempFolderPath) {
+  try {
+    const sharp = require("sharp");
+    let imgFilePaths = fileUtils.getImageFilesInFolderRecursive(tempFolderPath);
+    imgFilePaths.sort(utils.compare);
+
+    if (!data["ComicInfo"]["Pages"]) {
+      data["ComicInfo"]["Pages"] = {};
+    }
+    if (!data["ComicInfo"]["Pages"]["Page"]) {
+      data["ComicInfo"]["Pages"]["Page"] = [];
+    }
+    let oldPagesArray = data["ComicInfo"]["Pages"]["Page"].slice();
+    data["ComicInfo"]["Pages"]["Page"] = [];
+    for (let index = 0; index < imgFilePaths.length; index++) {
+      let pageData = {
+        "@_Image": "",
+        "@_ImageSize": "",
+        "@_ImageWidth": "",
+        "@_ImageHeight": "",
+      };
+      if (oldPagesArray.length > index) {
+        pageData = oldPagesArray[index];
+      }
+      let filePath = imgFilePaths[index];
+      pageData["@_Image"] = index;
+      let fileStats = fs.statSync(filePath);
+      let fileSizeInBytes = fileStats.size;
+      pageData["@_ImageSize"] = fileSizeInBytes;
+      const metadata = await sharp(filePath).metadata();
+      pageData["@_ImageWidth"] = metadata.width;
+      pageData["@_ImageHeight"] = metadata.height;
+      data["ComicInfo"]["Pages"]["Page"].push(pageData);
+    }
+    send({ success: true, data });
+  } catch (error) {
+    send({
+      success: false,
+      error: error,
+    });
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+async function doImagesToolWork(
+  imgFiles,
+  tempSubFolderPath,
+  resizeNeeded,
+  imageOpsNeeded,
+  uiSelectedOptions,
+  convertingImageText,
+  extractingToText,
+  outputExistsErrorText,
+) {
+  let numAttempts = 0;
+  let numErrors = 0;
+  let failedFilePaths = [];
+
+  try {
+    const { processImage } = require("./tools-process-images");
+    const sharp = require("sharp");
+    sharp.concurrency(0);
+    // avoid EBUSY error on windows
+    sharp.cache(false);
+
+    let outputFormat = uiSelectedOptions.outputImageFormat;
+    uiSelectedOptions.outputFormat === FileExtension.NOT_SET;
+
+    for (let index = 0; index < imgFiles.length; index++) {
+      updateModalLogText("");
+      numAttempts++;
+      const originalFilePath = imgFiles[index].path;
+      try {
+        updateModalLogText(convertingImageText + ": " + originalFilePath);
+        if (g_cancel === true) {
+          send({
+            success: true,
+            state: "cancelled",
+            numAttempts: numAttempts - 1,
+            numErrors,
+            failedFilePaths,
+          });
+          return;
+        }
+        //////////////////////////////////////////////
+        let tempCopyFilePath = path.join(
+          tempSubFolderPath,
+          path.basename(originalFilePath),
+        );
+        fs.copyFileSync(originalFilePath, tempCopyFilePath);
+        let baseFileName = path.basename(
+          tempCopyFilePath,
+          path.extname(tempCopyFilePath),
+        );
+        ////
+        let outputFolderPath;
+        let createFolders = false;
+        if (uiSelectedOptions.outputFolderOption == "1") {
+          // same as input
+          outputFolderPath = path.dirname(originalFilePath);
+        } else {
+          // one for all
+          outputFolderPath = uiSelectedOptions.outputFolderPath;
+          if (
+            uiSelectedOptions.outputKeepSubfoldersStructure &&
+            imgFiles[index].outputFolderPath &&
+            imgFiles[index].outputFolderPath.startsWith(outputFolderPath)
+          ) {
+            outputFolderPath = imgFiles[index].outputFolderPath;
+            createFolders = true;
+          }
+        }
+        ////
+        let outputFilePath = path.join(
+          outputFolderPath,
+          baseFileName + "." + outputFormat,
+        );
+        if (fs.existsSync(outputFilePath)) {
+          if (uiSelectedOptions.outputFileSameName === "overwrite") {
+            // do nothing
+          } else if (uiSelectedOptions.outputFileSameName === "skip") {
+            throw outputExistsErrorText;
+          } else {
+            // "rename"
+            let i = 1;
+            while (fs.existsSync(outputFilePath)) {
+              i++;
+              outputFilePath = path.join(
+                outputFolderPath,
+                baseFileName + " (" + i + ")." + outputFormat,
+              );
+            }
+          }
+        }
+        //////////////////////////////////////////////
+        const result = await processImage(
+          tempCopyFilePath,
+          resizeNeeded,
+          imageOpsNeeded,
+          uiSelectedOptions,
+        );
+        tempCopyFilePath = result.filePath;
+        updateModalLogText(extractingToText + ": " + outputFilePath);
+        if (createFolders) fs.mkdirSync(outputFolderPath, { recursive: true });
+        fs.copyFileSync(tempCopyFilePath, outputFilePath);
+        //////////////////////////////////////////////
+        await fileUtils.safeUnlink(tempCopyFilePath, true);
+      } catch (error) {
+        updateModalLogText(error);
+        numErrors++;
+        failedFilePaths.push({ path: originalFilePath });
+      }
+    }
+    if (numErrors > 0) throw "failed conversions";
+    send({
+      success: true,
+      state: "success",
+      numAttempts,
+      numErrors,
+      failedFilePaths,
+    });
+  } catch (error) {
+    send({
+      success: false,
+      error: error,
+      numAttempts,
+      numErrors,
+      failedFilePaths,
+    });
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
 function send(message) {
   process.parentPort.postMessage(message);
+}
+
+function updateModalLogText(text) {
+  send({
+    type: "modalLog",
+    log: text,
+  });
 }

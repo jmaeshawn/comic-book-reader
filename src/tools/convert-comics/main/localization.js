@@ -11,6 +11,7 @@ const ToolMode = {
   CONVERT: 0,
   CREATE: 1,
   EXTRACT: 2,
+  CONVERT_IMGS: 3,
 };
 
 exports.getLocalizedTexts = function () {
@@ -33,7 +34,7 @@ exports.getLocalizedTexts = function () {
   };
 };
 
-exports.getTooltipsLocalization = function () {
+exports.getTooltipsLocalization = function (mode) {
   return [
     {
       id: "tool-cc-tooltip-output-size",
@@ -69,35 +70,64 @@ exports.getTooltipsLocalization = function () {
     },
     {
       id: "tool-cc-tooltip-keep-subfolders-structure",
-      text: _(
-        "tool-shared-ui-output-options-keep-subfolders-tooltip",
-        _("tool-shared-ui-output-folder"),
-        _("tool-shared-ui-output-folder-0"),
-        _("tool-shared-ui-input-folders-recursively"),
-      ),
+      text:
+        mode === ToolMode.CONVERT_IMGS
+          ? _("tool-shared-ui-output-options-keep-subfolders-tooltip") +
+            "\n\n" +
+            _(
+              "tool-shared-ui-output-options-keep-subfolders-tooltip-o1",
+              _("tool-shared-ui-output-folder"),
+              _("tool-shared-ui-output-folder-0"),
+            )
+          : _("tool-shared-ui-output-options-keep-subfolders-tooltip") +
+            "\n\n" +
+            _(
+              "tool-shared-ui-output-options-keep-subfolders-tooltip-o2",
+              _("tool-shared-ui-output-folder"),
+              _("tool-shared-ui-output-folder-0"),
+              _("tool-shared-ui-input-folders-contain"),
+              _("tool-shared-ui-input-folders-contain-0"),
+            ),
     },
   ];
 };
 
 exports.getLocalization = function (mode) {
+  let toolTitle;
+  switch (mode) {
+    case ToolMode.CONVERT:
+      toolTitle = (
+        _raw("tool-cc-title-alt", false)
+          ? _raw("tool-cc-title-alt", false)
+          : _("tool-cc-title")
+      ).toUpperCase();
+      break;
+    case ToolMode.EXTRACT:
+      toolTitle = (
+        _raw("tool-ec-title-alt", false)
+          ? _raw("tool-ec-title-alt", false)
+          : _("tool-ec-title")
+      ).toUpperCase();
+      break;
+    case ToolMode.CREATE:
+      toolTitle = (
+        _raw("tool-cr-title-alt", false)
+          ? _raw("tool-cr-title-alt", false)
+          : _("tool-cr-title")
+      ).toUpperCase();
+      break;
+    case ToolMode.CONVERT_IMGS:
+      toolTitle = (
+        _raw("tool-ci-title-alt", false)
+          ? _raw("tool-ci-title-alt", false)
+          : _("tool-ci-title")
+      ).toUpperCase();
+      break;
+  }
   return [
     {
       id: "tool-cc-title-text",
-      text:
-        mode === ToolMode.CONVERT
-          ? (_raw("tool-cc-title-alt", false)
-              ? _raw("tool-cc-title-alt", false)
-              : _("tool-cc-title")
-            ).toUpperCase()
-          : mode === ToolMode.EXTRACT
-            ? (_raw("tool-ec-title-alt", false)
-                ? _raw("tool-ec-title-alt", false)
-                : _("tool-ec-title")
-              ).toUpperCase()
-            : (_raw("tool-cr-title-alt", false)
-                ? _raw("tool-cr-title-alt", false)
-                : _("tool-cr-title")
-              ).toUpperCase(),
+      text: toolTitle,
     },
     {
       id: "tool-cc-back-button-text",
@@ -106,7 +136,7 @@ exports.getLocalization = function (mode) {
     {
       id: "tool-cc-start-button-text",
       text:
-        mode === ToolMode.CONVERT
+        mode === ToolMode.CONVERT || mode === ToolMode.CONVERT_IMGS
           ? _("tool-shared-ui-convert").toUpperCase()
           : mode === ToolMode.EXTRACT
             ? _("tool-shared-ui-extract").toUpperCase()
@@ -387,6 +417,10 @@ exports.getLocalization = function (mode) {
     {
       id: "tool-cc-imageprocessing-multithreading-numworkers-text",
       text: _("tool-shared-ui-imageprocessing-multithreading-numworkers"),
+    },
+    {
+      id: "tool-cc-image-quality-text",
+      text: _("tool-shared-ui-output-options-image-quality"),
     },
     //////////////////////////////////////////////
     {

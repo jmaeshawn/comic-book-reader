@@ -246,6 +246,7 @@
               id="tool-pre-zoom-default-fitheight-text"
               value="1"
             ></option>
+            <option id="tool-pre-zoom-default-fitboth-text" value="3"></option>
             <option
               id="tool-pre-zoom-default-lastused-text"
               value="2"
@@ -309,9 +310,9 @@
             ></option></select
         ></label>
       </div>
-      <!-- mouse -->
+      <!-- navigation -->
       <h3 class="tools-h3-extra-margin-top">
-        <span id="tool-pre-mouse2-text"></span>
+        <span id="tool-pre-navigation-text"></span>
       </h3>
       <div class="tools-columns-right-subsection">
         <label
@@ -324,12 +325,6 @@
               value="2"
             ></option></select
         ></label>
-      </div>
-      <!-- navigation -->
-      <h3 class="tools-h3-extra-margin-top">
-        <span id="tool-pre-navigation-text"></span>
-      </h3>
-      <div class="tools-columns-right-subsection">
         <label
           ><span id="tool-pre-autoopen-text"></span
           ><select id="tool-pre-autoopen-select">
@@ -342,6 +337,11 @@
         ></label>
         <label
           ><span id="tool-pre-page-turn-text"></span
+          ><i
+            id="tool-pre-page-turn-tooltip"
+            class="fas fa-question-circle tools-tooltip-button"
+            title="tooltip"
+          ></i
           ><select id="tool-pre-page-turn-select">
             <option id="tool-pre-page-turn-default-text" value="false"></option>
             <option
@@ -349,6 +349,55 @@
               value="true"
             ></option></select
         ></label>
+        <div
+          class="tools-option-children"
+          id="tool-pre-page-turn-onscroll-children-div"
+        >
+          <label class="tools-option-children-bullet"
+            ><span
+              id="tool-pre-page-turn-onscroll-boundary-lock-time-text"
+            ></span>
+            <i
+              id="tool-pre-page-turn-onscroll-boundary-lock-time-tooltip"
+              class="fas fa-question-circle tools-tooltip-button"
+              title="tooltip"
+            ></i>
+            <input
+              id="tool-pre-page-turn-onscroll-boundary-lock-time-input"
+              type="number"
+              value="200"
+          /></label>
+
+          <label
+            ><span
+              id="tool-pre-page-turn-onscroll-boundary-settle-time-text"
+            ></span>
+            <i
+              id="tool-pre-page-turn-onscroll-boundary-settle-time-tooltip"
+              class="fas fa-question-circle tools-tooltip-button"
+              title="tooltip"
+            ></i>
+            <input
+              id="tool-pre-page-turn-onscroll-boundary-settle-time-input"
+              type="number"
+              value="500"
+          /></label>
+
+          <label
+            ><span
+              id="tool-pre-page-turn-onscroll-scroll-block-time-text"
+            ></span>
+            <i
+              id="tool-pre-page-turn-onscroll-scroll-block-time-tooltip"
+              class="fas fa-question-circle tools-tooltip-button"
+              title="tooltip"
+            ></i>
+            <input
+              id="tool-pre-page-turn-onscroll-scroll-block-time-input"
+              type="number"
+              value="0"
+          /></label>
+        </div>
       </div>
       <!-- history -->
       <h3 class="tools-h3-extra-margin-top">

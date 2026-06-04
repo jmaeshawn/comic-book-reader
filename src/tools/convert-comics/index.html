@@ -52,7 +52,7 @@
       <h3><span id="tool-cc-input-options-text"></span></h3>
       <div class="tools-columns-right-subsection">
         <label><span id="tool-cc-input-files-text"></span> </label>
-        <div class="tool-shared-columns-parent">
+        <div class="tool-shared-columns-parent tool-shared-buttons-div">
           <div class="tool-shared-columns-50">
             <button id="tool-cc-add-file-button">
               <span id="tool-cc-add-file-button-text"></span>
@@ -75,7 +75,7 @@
         ></ul>
         <div
           id="tool-cc-input-list-buttons-2"
-          class="tool-shared-columns-parent tool-shared-columns-parent-extra-margin-top set-display-none"
+          class="tool-shared-columns-parent tool-shared-columns-parent-extra-margin-top tool-shared-buttons-div set-display-none"
         >
           <div class="tool-shared-columns-50">
             <button id="tool-cc-add-file-button-2">
@@ -146,7 +146,7 @@
           <ul id="tool-cc-output-folder" class="tools-collection-ul"></ul>
         </label>
         <div
-          class="tool-shared-columns-parent tool-shared-columns-parent-extra-margin-bottom tools-scale-div"
+          class="tool-shared-columns-parent tool-shared-columns-parent-extra-margin-bottom tools-scale-div tool-shared-buttons-div"
         >
           <button
             id="tool-cc-change-folder-button"
@@ -883,71 +883,74 @@
           </div>
         </div>
 
-        <label class="tools-h3-extra-margin-top"
-          ><span id="tool-cc-jpg-quality-text">JPG: quality</span>
-          <div class="tools-range-wrap">
-            <input
-              type="range"
-              class="tools-range"
-              min="10"
-              max="100"
-              id="tool-cc-jpg-quality-slider"
-              value="90"
-            />
-            <ul class="tools-collection-ul tools-range-ul"></ul>
-            <output class="tools-range-bubble set-display-none"></output>
-          </div>
-        </label>
-        <label><span id="tool-cc-jpg-mozjpeg-text">JPG: mozjpeg</span></label>
-        <label class="tools-toggle">
-          <input type="checkbox" id="tool-cc-jpg-mozjpeg-checkbox" />
-          <span class="tools-toggle-slider"></span>
-        </label>
-        <label class="tools-h3-extra-margin-top"
-          ><span id="tool-cc-png-quality-text">PNG: quality</span>
-          <div class="tools-range-wrap">
-            <input
-              type="range"
-              class="tools-range"
-              min="10"
-              max="100"
-              id="tool-cc-png-quality-slider"
-              value="100"
-            />
-            <ul class="tools-collection-ul tools-range-ul"></ul>
-            <output class="tools-range-bubble set-display-none"></output>
-          </div>
-        </label>
-        <label class="tools-h3-extra-margin-top"
-          ><span id="tool-cc-avif-quality-text">AVIF: quality</span>
-          <div class="tools-range-wrap">
-            <input
-              type="range"
-              class="tools-range"
-              min="10"
-              max="100"
-              id="tool-cc-avif-quality-slider"
-              value="50"
-            />
-            <ul class="tools-collection-ul tools-range-ul"></ul>
-            <output class="tools-range-bubble set-display-none"></output>
-          </div>
-        </label>
-        <label class="tools-h3-extra-margin-top"
-          ><span id="tool-cc-webp-quality-text">WebP: quality</span>
-          <div class="tools-range-wrap">
-            <input
-              type="range"
-              class="tools-range"
-              min="10"
-              max="100"
-              id="tool-cc-webp-quality-slider"
-              value="80"
-            />
-            <ul class="tools-collection-ul tools-range-ul"></ul>
-            <output class="tools-range-bubble set-display-none"></output>
-          </div>
-        </label>
+        <label><span id="tool-cc-image-quality-text"></span></label>
+        <div class="tools-option-children">
+          <label class="tools-option-children-bullet"
+            ><span id="tool-cc-jpg-quality-text">JPG: quality</span>
+            <div class="tools-range-wrap">
+              <input
+                type="range"
+                class="tools-range"
+                min="10"
+                max="100"
+                id="tool-cc-jpg-quality-slider"
+                value="90"
+              />
+              <ul class="tools-collection-ul tools-range-ul"></ul>
+              <output class="tools-range-bubble set-display-none"></output>
+            </div>
+          </label>
+          <label><span id="tool-cc-jpg-mozjpeg-text">JPG: mozjpeg</span></label>
+          <label class="tools-toggle">
+            <input type="checkbox" id="tool-cc-jpg-mozjpeg-checkbox" />
+            <span class="tools-toggle-slider"></span>
+          </label>
+          <label class="tools-h3-extra-margin-top"
+            ><span id="tool-cc-png-quality-text">PNG: quality</span>
+            <div class="tools-range-wrap">
+              <input
+                type="range"
+                class="tools-range"
+                min="10"
+                max="100"
+                id="tool-cc-png-quality-slider"
+                value="100"
+              />
+              <ul class="tools-collection-ul tools-range-ul"></ul>
+              <output class="tools-range-bubble set-display-none"></output>
+            </div>
+          </label>
+          <label class="tools-h3-extra-margin-top"
+            ><span id="tool-cc-avif-quality-text">AVIF: quality</span>
+            <div class="tools-range-wrap">
+              <input
+                type="range"
+                class="tools-range"
+                min="10"
+                max="100"
+                id="tool-cc-avif-quality-slider"
+                value="50"
+              />
+              <ul class="tools-collection-ul tools-range-ul"></ul>
+              <output class="tools-range-bubble set-display-none"></output>
+            </div>
+          </label>
+          <label class="tools-h3-extra-margin-top"
+            ><span id="tool-cc-webp-quality-text">WebP: quality</span>
+            <div class="tools-range-wrap">
+              <input
+                type="range"
+                class="tools-range"
+                min="10"
+                max="100"
+                id="tool-cc-webp-quality-slider"
+                value="80"
+              />
+              <ul class="tools-collection-ul tools-range-ul"></ul>
+              <output class="tools-range-bubble set-display-none"></output>
+            </div>
+          </label>
+        </div>
       </div>
     </div>
     <!-- settings -->
