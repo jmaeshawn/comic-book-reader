@@ -163,7 +163,16 @@ function sendCurrentRequestResult() {
   log.debug(
     `[PAGES] page load time: ${timers.stop("pagesExtraction").toFixed(2)}s`,
   );
-  const images = g_currentRequest.map((request, index) => request.image);
+  const images = g_currentRequest.map((request, index) => {
+    const image = request.image;
+    if (image && Array.isArray(g_fileData?.pageLayout)) {
+      return {
+        ...image,
+        comicInfoPageType: g_fileData.pageLayout[request.pageIndex],
+      };
+    }
+    return image;
+  });
   sendIpcToRenderer(
     "render-img-page",
     images, // buffers and mimes
