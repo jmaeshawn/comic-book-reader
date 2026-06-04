@@ -47,6 +47,10 @@
         }
       ]
     },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
     "linux": {
       "category": "Graphics",
       "icon": "./src/assets/images/icon_256x256.png",

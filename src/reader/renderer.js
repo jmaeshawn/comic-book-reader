@@ -27,7 +27,11 @@ import {
   addToolbarEventListeners,
   updateToolbarPageInfo,
 } from "./renderer/toolbar.js";
-import { initModalsOnIpcCallbacks, getOpenModal } from "./renderer/modals.js";
+import {
+  initModalsOnIpcCallbacks,
+  getOpenModal,
+  setCurrentPageIndex,
+} from "./renderer/modals.js";
 
 import {
   onInputEvent as modalOnInputEvent,
@@ -324,6 +328,9 @@ export function updateZoom() {
 }
 
 export function updatePageInfo(pageNum, numPages, isPercentage) {
+  if (!isPercentage && Number.isInteger(pageNum)) {
+    setCurrentPageIndex(pageNum);
+  }
   if (isPercentage) {
     document.getElementById("page-number-bubble").innerHTML = `<span>${Number(
       pageNum,
@@ -331,6 +338,15 @@ export function updatePageInfo(pageNum, numPages, isPercentage) {
   } else {
     if (numPages === 0) pageNum = -1; // hack to make it show 00 / 00 @ start
     let currentPageText = `${pageNum + 1} / ${numPages}`;
+    if (getPageMode() === 1) {
+      if (numPages > 1 && pageNum + 1 < numPages) {
+        currentPageText = `${pageNum + 1}-${pageNum + 2} / ${numPages}`;
+      }
+    } else if (getPageMode() === 2) {
+      if (numPages > 1 && pageNum !== 0 && pageNum + 1 < numPages) {
+        currentPageText = `${pageNum + 1}-${pageNum + 2} / ${numPages}`;
+      }
+    }
     document.getElementById("page-number-bubble").innerHTML =
       "<span>" + currentPageText + "</span>";
   }

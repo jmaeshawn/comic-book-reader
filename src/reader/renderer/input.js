@@ -12,6 +12,7 @@ import {
   handleWheelEventScrollBoundaries,
   areScrollBoundariesEnabled,
 } from "./scrollbar.js";
+import { showModalToc, hasTocEntries } from "./modals.js";
 
 ///////////////////////////////////////////////////////////////////////////////
 // SETUP //////////////////////////////////////////////////////////////////////
@@ -37,6 +38,18 @@ export function getMouseButtons() {
 
 export function getNavButtons() {
   return g_navButtons;
+}
+
+function isTocShortcut(event) {
+  return (
+    event &&
+    !event.repeat &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey &&
+    event.key &&
+    event.key.toLowerCase() === "t"
+  );
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -132,6 +145,13 @@ export function onInputEvent(type, event) {
         }
         ////
         if (fileOpen) {
+          if (isTocShortcut(event) && hasTocEntries()) {
+            showModalToc();
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+
           // TODO: now that home screen handles its own input, if I'm here,
           // isn't it always open?
           if (
