@@ -233,3 +233,18 @@
   direction: ltr;
   line-height: 100%;
 }
+
+/* ComicInfo.xml page side hints for dual-page mode */
+.pages-row-comicinfo-layout {
+  flex-direction: row !important;
+}
+.pages-row-comicinfo-layout .page-comicinfo-left {
+  order: 1;
+}
+.pages-row-comicinfo-layout .page-comicinfo-right {
+  order: 2;
+}
+.pages-row-comicinfo-layout .page-comicinfo-frontcover,
+.pages-row-comicinfo-layout .page-centered {
+  order: 1;
+}

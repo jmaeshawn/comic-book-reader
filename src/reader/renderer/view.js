@@ -222,6 +222,29 @@ export function setZoomHeightCssVars(scale) {
 // IMAGE BUFFERS //////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+function addComicInfoLayoutClass(img, imageData) {
+  const pageType = imageData?.comicInfoPageType;
+  if (pageType === "rightpage") {
+    img.classList.add("page-comicinfo-right");
+  } else if (pageType === "leftpage") {
+    img.classList.add("page-comicinfo-left");
+  } else if (pageType === "frontcover") {
+    img.classList.add("page-comicinfo-frontcover");
+  }
+}
+
+function hasComicInfoSideLayout(images) {
+  return (
+    Array.isArray(images) &&
+    images.some(
+      (image) =>
+        image?.comicInfoPageType === "rightpage" ||
+        image?.comicInfoPageType === "leftpage" ||
+        image?.comicInfoPageType === "frontcover",
+    )
+  );
+}
+
 export function renderImageBuffers(
   images,
   rotation,
@@ -247,6 +270,7 @@ export function renderImageBuffers(
     assignImageToImgSrc(images[0], page1Img);
     page1Img.classList.add("page-img");
     page1Img.classList.add("page");
+    addComicInfoLayoutClass(page1Img, images[0]);
     if (title && title != "") page1Img.title = title;
     if (rotation === 180) {
       page1Img.classList.add("set-rotate-180");
@@ -259,6 +283,7 @@ export function renderImageBuffers(
       assignImageToImgSrc(images[1], page2Img);
       page2Img.classList.add("page-img");
       page2Img.classList.add("page");
+      addComicInfoLayoutClass(page2Img, images[1]);
       page1Img.classList.add("page-1");
       page2Img.classList.add("page-2");
       if (title && title != "") page2Img.title = title;
@@ -266,6 +291,9 @@ export function renderImageBuffers(
         page2Img.classList.add("set-rotate-180");
       }
       pagesRowDiv.classList.add("pages-row-2p");
+      if (hasComicInfoSideLayout(images)) {
+        pagesRowDiv.classList.add("pages-row-comicinfo-layout");
+      }
       pagesRowDiv.innerHTML = "";
       setFilterClass(page2Img);
     } else {

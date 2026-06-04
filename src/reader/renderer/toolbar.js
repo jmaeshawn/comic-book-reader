@@ -54,6 +54,7 @@ export function initToolbarOnIpcCallbacks() {
       tPageModeModes,
       tPagesDirection,
       tPagesDirectionModes,
+      tToc,
     ) => {
       document.querySelector("#toolbar-button-open-href").title = tOpenFile;
       document.querySelector("#toolbar-button-left-href").title = tPrevious;
@@ -85,6 +86,7 @@ export function initToolbarOnIpcCallbacks() {
         tPagesDirection,
         tPagesDirectionModes,
       );
+      document.querySelector("#toolbar-button-toc-href").title = tToc;
     },
   );
 
@@ -124,6 +126,18 @@ export function initToolbarOnIpcCallbacks() {
 
   on("update-toolbar-zoom-buttons", (areEnabled) => {
     const button = document.querySelector("#toolbar-button-zoom");
+    if (areEnabled) {
+      button.classList.remove("set-no-click");
+      button.classList.remove("set-low-opacity");
+    } else {
+      button.classList.add("set-no-click");
+      button.classList.add("set-low-opacity");
+    }
+  });
+
+  on("update-toolbar-toc-button", (areEnabled) => {
+    const button = document.querySelector("#toolbar-button-toc");
+    if (!button) return;
     if (areEnabled) {
       button.classList.remove("set-no-click");
       button.classList.remove("set-low-opacity");
@@ -185,6 +199,7 @@ export function addToolbarEventListeners() {
   addButtonEvent("toolbar-button-fullscreen-enter");
   addButtonEvent("toolbar-button-fullscreen-exit");
   addButtonEvent("toolbar-button-open");
+  addButtonEvent("toolbar-button-toc");
 
   document
     .getElementById("toolbar-page-slider-input")
